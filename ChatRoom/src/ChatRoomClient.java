@@ -18,9 +18,15 @@ public class ChatRoomClient
         {
             try
             {
-                while (true)
+                synchronized (inputStream)
                 {
-                    System.out.println(inputStream.readUTF());
+                    while (true)
+                    {
+                        if (!inputStream.readUTF().isBlank())
+                        {
+                            System.out.println(inputStream.readUTF() + '\n');
+                        }
+                    }
                 }
             }
 
@@ -47,5 +53,13 @@ public class ChatRoomClient
                 e.printStackTrace();
             }
         });
+
+        inputThread.start();
+        outputThread.start();
+
+        inputThread.join();
+        outputThread.join();
+
+        clientSocket.close();
     }
 }

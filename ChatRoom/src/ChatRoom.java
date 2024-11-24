@@ -12,8 +12,8 @@ public class ChatRoom
         ServerSocket serverSocket = new ServerSocket(port);
         Socket clientSocket = serverSocket.accept();
 
-        DataOutputStream outputStream = new DataOutputStream(clientSocket.getOutputStream());
         DataInputStream inputStream = new DataInputStream(clientSocket.getInputStream());
+        DataOutputStream outputStream = new DataOutputStream(clientSocket.getOutputStream());
 
         System.out.println(welcomeMessage);
         outputStream.writeUTF(welcomeMessage);
@@ -22,16 +22,16 @@ public class ChatRoom
         {
             try
             {
-                while (true)
-                {
-                    synchronized (inputStream)
-                    {
-                        if (!inputStream.toString().isBlank())
-                        {
-                            System.out.println(inputStream.readUTF() + '\n');
-                        }
-                    }
-                }
+               synchronized (inputStream)
+               {
+                   while (true)
+                   {
+                       if (!inputStream.readUTF().isBlank())
+                       {
+                           System.out.println(inputStream.readUTF() + '\n');
+                       }
+                   }
+               }
             }
             catch (Exception e)
             {
@@ -44,14 +44,13 @@ public class ChatRoom
         {
             try
             {
-                while (true)
+                synchronized (inputStream)
                 {
-                    synchronized (inputStream)
+                    while (true)
                     {
-                        if (!inputStream.toString().isBlank())
+                        if (!inputStream.readUTF().isBlank())
                         {
                             outputStream.writeUTF(inputStream.readUTF() + '\n');
-                            outputStream.flush();
                         }
                     }
                 }
@@ -68,5 +67,8 @@ public class ChatRoom
 
         inputThread.join();
         outputThread.join();
+
+        serverSocket.close();
+        clientSocket.close();
     }
 }
