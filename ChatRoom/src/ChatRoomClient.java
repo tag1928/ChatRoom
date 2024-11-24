@@ -20,11 +20,14 @@ public class ChatRoomClient
             {
                 synchronized (inputStream)
                 {
+                    String readLine = "";
                     while (true)
                     {
-                        if (!inputStream.readUTF().isBlank())
+                        readLine = inputStream.readUTF();
+
+                        if (!readLine.isBlank())
                         {
-                            System.out.println(inputStream.readUTF() + '\n');
+                            System.out.println(readLine);
                         }
                     }
                 }
@@ -61,5 +64,6 @@ public class ChatRoomClient
         outputThread.join();
 
         clientSocket.close();
+        scanner.close();
     }
 }

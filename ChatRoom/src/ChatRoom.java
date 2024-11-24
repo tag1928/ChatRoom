@@ -8,7 +8,7 @@ public class ChatRoom
     public static void main(String[] args) throws Exception
     {
         final int port = 6969;
-        final String welcomeMessage = "Welcome to YapRoom\n";
+        final String welcomeMessage = "Welcome to YapRoom";
         ServerSocket serverSocket = new ServerSocket(port);
         Socket clientSocket = serverSocket.accept();
 
@@ -17,18 +17,22 @@ public class ChatRoom
 
         System.out.println(welcomeMessage);
         outputStream.writeUTF(welcomeMessage);
+        outputStream.flush();
 
         Thread inputThread = new Thread(() ->
         {
+            String readLine = "";
             try
             {
                synchronized (inputStream)
                {
                    while (true)
                    {
-                       if (!inputStream.readUTF().isBlank())
+                       readLine = inputStream.readUTF();
+
+                       if (!readLine.isBlank())
                        {
-                           System.out.println(inputStream.readUTF() + '\n');
+                           System.out.println(readLine);
                        }
                    }
                }
@@ -42,15 +46,18 @@ public class ChatRoom
 
         Thread outputThread = new Thread(() ->
         {
+            String writeLine = "";
             try
             {
                 synchronized (inputStream)
                 {
                     while (true)
                     {
-                        if (!inputStream.readUTF().isBlank())
+                        writeLine = inputStream.readUTF();
+
+                        if (!writeLine.isBlank())
                         {
-                            outputStream.writeUTF(inputStream.readUTF() + '\n');
+                            outputStream.writeUTF(writeLine);
                         }
                     }
                 }
