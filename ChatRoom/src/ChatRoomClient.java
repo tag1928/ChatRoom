@@ -2,12 +2,16 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.net.Socket;
 import java.util.Scanner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ChatRoomClient
 {
     public static void main(String[] args) throws Exception
     {
         final int port = 6969;
+        final String[] name = {"Anon"};
+
         Socket clientSocket = new Socket("localhost", port);
         Scanner scanner = new Scanner(System.in);
 
@@ -21,6 +25,7 @@ public class ChatRoomClient
                 synchronized (inputStream)
                 {
                     String readLine = "";
+
                     while (true)
                     {
                         readLine = inputStream.readUTF();
@@ -44,10 +49,21 @@ public class ChatRoomClient
         {
             try
             {
+                Pattern changeName = Pattern.compile("^\\/name .+$");
+
                 while (true)
                 {
-                    outputStream.writeUTF(scanner.nextLine());
-                    outputStream.flush();
+                    String input = scanner.nextLine();
+                    Matcher matcher = changeName.matcher(input);
+                    if (matcher.find())
+                    {
+                        name[0] = input.substring(6);
+                    }
+                    else
+                    {
+                        outputStream.writeUTF(name[0] + ": " + input);
+                        outputStream.flush();
+                    }
                 }
             }
             catch (Exception e)
@@ -65,5 +81,8 @@ public class ChatRoomClient
 
         clientSocket.close();
         scanner.close();
+
+        inputStream.close();
+        outputStream.close();
     }
 }
