@@ -1,41 +1,32 @@
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Scanner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-public class ChatRoom
+public class ChatRoomClientFunctionality
 {
     public static void main(String[] args) throws Exception
     {
         final int port = 6969;
-        final String welcomeMessage = "Welcome to YapRoom!";
-        final String instructionMessage = "To change name, enter \"/name <desired username>\".";
-        final String divisorString = "\n================\n";
+        final String[] name = new String[1];
+        name[0] = "Anon";
 
-        ServerSocket serverSocket = new ServerSocket(port);
-        Socket clientSocket = serverSocket.accept();
+        Socket clientSocket = new Socket("localhost", port);
+        Scanner scanner = new Scanner(System.in);
 
         DataInputStream inputStream = new DataInputStream(clientSocket.getInputStream());
         DataOutputStream outputStream = new DataOutputStream(clientSocket.getOutputStream());
 
-        System.out.println("SERVER SIDE");
-        System.out.println("CHAT LOGS:");
-        System.out.println(welcomeMessage);
-        System.out.println(instructionMessage);
-        System.out.println(divisorString);
-
-        outputStream.writeUTF(welcomeMessage);
-        outputStream.writeUTF(instructionMessage);
-        outputStream.writeUTF(divisorString);
-        outputStream.flush();
-
         Thread inputThread = new Thread(() ->
         {
-            String readLine = "";
             try
             {
                 synchronized (inputStream)
                 {
+                    String readLine = "";
+
                     while (true)
                     {
                         readLine = inputStream.readUTF();
@@ -47,6 +38,7 @@ public class ChatRoom
                     }
                 }
             }
+
             catch (Exception e)
             {
                 System.out.println("I aint reading allat");
@@ -56,19 +48,27 @@ public class ChatRoom
 
         Thread outputThread = new Thread(() ->
         {
-            String writeLine = "";
             try
             {
-                synchronized (inputStream)
-                {
-                    while (true)
-                    {
-                        writeLine = inputStream.readUTF();
+                String writeLine;
+                Pattern changeName = Pattern.compile("^\\/name .+$");
+                Matcher matcher;
 
-                        if (!writeLine.isBlank())
-                        {
-                            outputStream.writeUTF(writeLine);
-                        }
+                while (true)
+                {
+                    writeLine = scanner.nextLine();
+                    matcher = changeName.matcher(writeLine);
+
+                    if (matcher.find())
+                    {
+                        outputStream.writeUTF(name[0] + "changed name to " + writeLine.substring(6));
+                        outputStream.flush();
+                        name[0] = writeLine.substring(6);
+                    }
+                    else
+                    {
+                        outputStream.writeUTF(name[0] + ": " + writeLine);
+                        outputStream.flush();
                     }
                 }
             }
@@ -85,10 +85,10 @@ public class ChatRoom
         inputThread.join();
         outputThread.join();
 
+        clientSocket.close();
+        scanner.close();
+
         inputStream.close();
         outputStream.close();
-
-        serverSocket.close();
-        clientSocket.close();
     }
 }
