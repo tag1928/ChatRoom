@@ -2,16 +2,12 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.net.Socket;
 import java.util.Scanner;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class ChatRoomClientFunctionality
 {
     public static void main(String[] args) throws Exception
     {
         final int port = 6969;
-        final String[] name = new String[1];
-        name[0] = "Anon";
 
         Socket clientSocket = new Socket("localhost", port);
         Scanner scanner = new Scanner(System.in);
@@ -23,18 +19,15 @@ public class ChatRoomClientFunctionality
         {
             try
             {
-                synchronized (inputStream)
+                String readLine = "";
+
+                while (true)
                 {
-                    String readLine = "";
+                    readLine = inputStream.readUTF();
 
-                    while (true)
+                    if (!readLine.isBlank())
                     {
-                        readLine = inputStream.readUTF();
-
-                        if (!readLine.isBlank())
-                        {
-                            System.out.println(readLine);
-                        }
+                        System.out.println(readLine);
                     }
                 }
             }
@@ -51,24 +44,14 @@ public class ChatRoomClientFunctionality
             try
             {
                 String writeLine;
-                Pattern changeName = Pattern.compile("^\\/name .+$");
-                Matcher matcher;
 
                 while (true)
                 {
                     writeLine = scanner.nextLine();
-                    matcher = changeName.matcher(writeLine);
 
-                    if (matcher.find())
+                    if (!writeLine.isBlank())
                     {
-                        outputStream.writeUTF(name[0] + "changed name to " + writeLine.substring(6));
-                        outputStream.flush();
-                        name[0] = writeLine.substring(6);
-                    }
-                    else
-                    {
-                        outputStream.writeUTF(name[0] + ": " + writeLine);
-                        outputStream.flush();
+                        outputStream.writeUTF(writeLine);
                     }
                 }
             }
