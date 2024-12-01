@@ -4,52 +4,113 @@ public class ServerFunctionality extends Server
 {
     public static void main(String[] args) throws Exception
     {
-        final int port = 6969;
-        final String welcomeMessage = "Welcome to YapRoom!";
-        final String instructionMessage = "To change name, enter \"/name <desired username>\"\n" + "To quit, enter \"/exit\".";
-        final String divisorString = "\n================\n";
-
         System.out.println("Waiting for connections...");
 
-        ServerSocket serverSocket = new ServerSocket(port);
+        serverSocket = new ServerSocket(port);
 
-        Thread acceptThread = new Thread(() ->
+        acceptThread = new Thread(() ->
         {
             try
             {
-                for (int i = 0; i < serverSize; i++)
+                while (isRunning)
                 {
-                    clients[i] = new Client(serverSocket.accept());
-
-                    clients[i].outputStream.writeInt(clients[i].clientId);
-                    clients[i].outputStream.flush();
-
-                    clients[i].outputStream.writeUTF(welcomeMessage);
-                    clients[i].outputStream.writeUTF(instructionMessage);
-                    clients[i].outputStream.writeUTF(divisorString);
-
-                    System.out.println("New user has connected");
+                    for (int i = 0; i < serverSize; i++)
+                    {
+                        if (clients[i] == null) connectClient(i);
+                    }
                 }
             }
             catch (Exception e)
             {
-                System.out.println("No connect for you");
-                Server.shutDown();
-                e.printStackTrace();
+                System.err.println("Failed to accept client");
+            }
+        });
+
+        outputThread = new Thread(() ->
+        {
+            Message sendMessage;
+
+            try
+            {
+                while(isRunning)
+                {
+                    if (chatQueue.isEmpty()) continue;
+                    sendMessage = chatQueue.poll();
+                    if (Message.isEmpty(sendMessage)) continue;
+
+                    if (sendMessage.getReceiverId() == serverId) sendAll(sendMessage);
+                    else sendDM(sendMessage);
+                }
+            }
+
+            catch (Exception e)
+            {
+                System.err.println("Failed to send message to client");
+            }
+        });
+
+        inputThread = new Thread(() ->
+        {
+            Thread[] clientInputThreads = new Thread[serverSize];
+
+            while (isRunning)
+            {
+                for (int i = 0; i < serverSize; i++)
+                {
+                    if (clients[i] == null) continue;
+                    if (clientInputThreads[i] != null) continue;
+
+                    int clientCursor = i;
+
+                    clientInputThreads[i] = new Thread(() ->
+                    {
+                        Message readMessage;
+                        String strMessage;
+
+                        try
+                        {
+                            while (isRunning)
+                            {
+                                readMessage = (Message) clients[clientCursor].inputStream.readObject();
+
+                                if (Message.isEmpty(readMessage)) continue;
+
+                                strMessage = readMessage.getMessage();
+
+                                if (clientExit.matcher(strMessage).matches())
+                                {
+                                    disconnectClient(clientCursor);
+                                    return;
+                                }
+
+                                if (changeClientName.matcher(strMessage).matches()) changeClientName(clientCursor, strMessage.substring(6));
+
+                                else if (readMessage.getReceiverId() == serverId) sendAll(readMessage);
+
+                                else sendDM(readMessage);
+                            }
+                        }
+
+                        catch (Exception e)
+                        {
+                            System.err.println("Failed to read message from client");
+                        }
+                    });
+
+                    clientInputThreads[i].start();
+                    if (!clientInputThreads[i].isAlive()) clientInputThreads[i] = null;
+                }
             }
         });
 
         acceptThread.start();
+        outputThread.start();
+        inputThread.start();
 
         acceptThread.join();
-        for (int i = 0; i < serverSize; i++)
-        {
-            if (clients[i] == null) continue;
-            clients[i].inputThread.join();
-            clients[i].outputThread.join();
-        }
+        outputThread.join();
+        inputThread.join();
 
-        serverSocket.close();
         Server.shutDown();
     }
 }

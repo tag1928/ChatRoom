@@ -1,104 +1,50 @@
-import java.io.DataOutputStream;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 
 class Client
 {
     Socket socket;
 
+    ObjectOutputStream outputStream;
     ObjectInputStream inputStream;
-    DataOutputStream outputStream;
-
-    Thread inputThread;
-    Thread outputThread;
 
     String clientName;
-    private static int clientCount = 1;
-    public final int clientId = clientCount;
+    private int clientId;
 
-    protected void setClientName(String name)
+    public int getClientId()
     {
-        clientName = name;
+        return clientId;
     }
 
-    public Client(){}
-
-    public Client(Socket clientSocket) throws Exception
+    public synchronized void disconnect()
     {
-        socket = clientSocket;
-        clientName = "Anon " + clientId;
-        clientCount++;
-
-        inputStream = new ObjectInputStream(clientSocket.getInputStream());
-        outputStream = new DataOutputStream(clientSocket.getOutputStream());
-
-        inputThread = new Thread(() ->
+        try
         {
-            try
-            {
-                ClientMessage readMessage;
+            socket.close();
+        }
 
-                while (Server.isRunning)
-                {
-                    readMessage = (ClientMessage)inputStream.readObject();
-
-                    if (readMessage.getMessage().isBlank()) continue;
-
-                    if (Server.clientExit.matcher(readMessage.getMessage()).matches())
-                    {
-                        Server.disconnectClient(Client.this);
-                        return;
-                    }
-
-                    if (Server.changeClientName.matcher(readMessage.getMessage()).matches())
-                    {
-                        System.out.print(clientName + " changed name to ");
-                        setClientName(readMessage.getMessage().substring(6));
-                        System.out.print(clientName + '\n');
-                    }
-
-                    else
-                    {
-                        System.out.println(clientName + ": " + readMessage.getMessage());
-                        Server.chatQueue.add(readMessage);
-                        Server.chatLog.add(readMessage);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                System.out.println("I aint reading allat");
-                Server.shutDown();
-                e.printStackTrace();
-            }
-        });
-
-        outputThread = new Thread(() ->
+        catch (Exception e)
         {
-            ClientMessage writeMessage;
+            System.err.println("Failed to disconnect client");
+        }
+    }
 
-            try
-            {
-                while (Server.isRunning)
-                {
-                    writeMessage = Server.chatQueue.peek();
+    public Client()
+    {
+        try
+        {
+            clientId = Server.freeID();
+            socket = Server.serverSocket.accept();
+            clientName = "Anon " + clientId;
 
-                    if (writeMessage == null) continue;
+            outputStream = new ObjectOutputStream(socket.getOutputStream());
+            inputStream = new ObjectInputStream(socket.getInputStream());
+        }
 
-                    if (writeMessage.getMessage().isBlank()) continue;
-
-                    Server.sendAll(writeMessage);
-                }
-            }
-            catch (Exception e)
-            {
-                System.out.println("Yapping failed");
-                Server.shutDown();
-                e.printStackTrace();
-            }
-        });
-
-        inputThread.start();
-        outputThread.start();
+        catch (Exception e)
+        {
+            System.err.println("Failed to create client object");
+        }
     }
 }
