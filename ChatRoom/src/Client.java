@@ -21,6 +21,9 @@ class Client
     {
         try
         {
+            outputStream = null;
+            inputStream = null;
+            clientName = null;
             socket.close();
         }
 
@@ -34,7 +37,7 @@ class Client
     {
         try
         {
-            clientId = Server.freeID();
+            clientId = Server.freeID() + 1;
             socket = Server.serverSocket.accept();
             clientName = "Anon " + clientId;
 

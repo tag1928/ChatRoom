@@ -35,10 +35,14 @@ public class ClientFunctionality
 
                         if (Server.clientExit.matcher(writeLine).matches())
                         {
-                            clientSocket.close();
-                            scanner.close();
+                            outputStream.writeObject(new Message(writeLine, clientId));
 
                             return;
+                        }
+
+                        if (Server.DM.matcher(writeLine).matches())
+                        {
+                            outputStream.writeObject(new Message(writeLine, clientId, Server.getId(writeLine.split(writeLine)[1])));
                         }
 
                         sendMessage = new Message(writeLine, clientId);
@@ -48,7 +52,7 @@ public class ClientFunctionality
                 }
                 catch (Exception e)
                 {
-                    System.out.println("Failed to send message to server");
+                    System.err.println("Failed to send message to server");
                 }
             });
 
@@ -62,12 +66,17 @@ public class ClientFunctionality
                     {
                         readMessage = (Message) inputStream.readObject();
 
+                        if (readMessage.getSenderId() == Server.serverId && readMessage.getMessage().equals(Server.disconnectString))
+                        {
+                            return;
+                        }
+
                         System.out.println(readMessage.getMessage());
                     }
                 }
                 catch (Exception e)
                 {
-                    System.out.println("Failed to read message from server");
+                    System.err.println("Failed to read message from server");
                 }
             });
 

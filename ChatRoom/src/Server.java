@@ -1,3 +1,4 @@
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Pattern;
@@ -11,15 +12,17 @@ abstract class Server
     static final int serverId = -1;
 
     static final String welcomeMessage = "Welcome to YapRoom!";
-    static final String instructionMessage = "To change name, enter \"/name <desired username>\"\n" + "To quit, enter \"/exit\".";
+    static final String instructionMessage = "To change name, enter \"/name <desired username>\"\n" + "To quit, enter \"/exit\".\n" + "To DM someone, type \"/dm <name> <message>\"";
     static final String divisorString = "\n================\n";
+    static final String disconnectString = "disconnect approved";
 
-    static Client[] clients = new Client[Server.serverSize];
+    static final private Client[] clients = new Client[serverSize];
     static final ConcurrentLinkedQueue <Message> chatQueue = new ConcurrentLinkedQueue <>();
     static final private ConcurrentLinkedQueue <Message> chatLog = new ConcurrentLinkedQueue <>();
 
     static final Pattern changeClientName = Pattern.compile("^\\/name [\\w\\d]+$");
     static final Pattern clientExit = Pattern.compile("/exit");
+    static final Pattern DM = Pattern.compile("^\\/dm [\\w\\d]+ [\\w\\d]+$");
 
     static ServerSocket serverSocket;
 
@@ -27,22 +30,49 @@ abstract class Server
     static Thread outputThread;
     static Thread inputThread;
 
-    static synchronized void disconnectClient(int clientId)
-    {
-        clients[clientId].disconnect();
-        System.out.println(clients[clientId].clientName + " has quit.");
-
-        clients[clientId] = null;
-    }
-
-    static int freeID() throws Exception
+    static int getId(String name) throws Exception
     {
         for (int i = 0; i < serverSize; i++)
         {
-            if (clients[i] == null) return i + 1;
+            if (clients[i] == null) continue;
+            if (clients[i].clientName == name) return i;
+        }
+
+        throw new Exception("No such client");
+    }
+
+    static synchronized void disconnectClient(int clientId)
+    {
+        try
+        {
+            System.out.println(clients[clientId].clientName + " has quit.");
+
+            inputThread.interrupt();
+
+            clients[clientId].disconnect();
+            clients[clientId] = null;
+            clients[clientId].outputStream.writeObject(new Message(disconnectString, serverId));
+        }
+
+        catch (IOException e)
+        {
+            System.err.println("Failed to open client outputStream");
+        }
+    }
+
+    static synchronized int freeID() throws Exception
+    {
+        for (int i = 0; i < serverSize; i++)
+        {
+            if (clients[i] == null) return i;
         }
 
         throw new Exception("No free ID");
+    }
+
+    static synchronized boolean clientIsEmpty(int clientId)
+    {
+        return clients[clientId] == null;
     }
 
     static void connectClient(int clientId)
@@ -69,7 +99,7 @@ abstract class Server
         }
     }
 
-    static protected synchronized void shutDown()
+    static synchronized void shutDown()
     {
         isRunning = false;
 
@@ -95,6 +125,52 @@ abstract class Server
     {
         System.out.println(clients[clientId].clientName + " changed name to " + name);
         clients[clientId].clientName = name;
+    }
+
+    static Message readMessage(int clientId)
+    {
+        Message message;
+
+        try
+        {
+            if (clients[clientId] == null)
+                return null;
+
+            message = (Message) clients[clientId].inputStream.readObject();
+
+            if (Message.isEmpty(message))
+                return null;
+            return message;
+        }
+
+        catch (Exception e)
+        {
+            System.err.println("Failed to read client inputStream");
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    static synchronized void handleMessage(Message message)
+    {
+        try
+        {
+            if (Message.isEmpty(message))
+                return;
+
+            if (clientExit.matcher(message.getMessage()).matches())
+                disconnectClient(message.getSenderId());
+
+            if (changeClientName.matcher(message.getMessage()).matches())
+                changeClientName(message.getSenderId(), message.getMessage().substring(6));
+
+            else chatQueue.add(message);
+        }
+
+        catch (Exception e)
+        {
+            System.err.println("Failed to process client message");
+        }
     }
 
     static void sendAll(Message message)

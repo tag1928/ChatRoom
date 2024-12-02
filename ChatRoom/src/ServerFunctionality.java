@@ -14,15 +14,12 @@ public class ServerFunctionality extends Server
             {
                 while (isRunning)
                 {
-                    for (int i = 0; i < serverSize; i++)
-                    {
-                        if (clients[i] == null) connectClient(i);
-                    }
+                    connectClient(freeID());
                 }
             }
             catch (Exception e)
             {
-                System.err.println("Failed to accept client");
+                System.out.println("No room left for more clients");
             }
         });
 
@@ -38,8 +35,10 @@ public class ServerFunctionality extends Server
                     sendMessage = chatQueue.poll();
                     if (Message.isEmpty(sendMessage)) continue;
 
-                    if (sendMessage.getReceiverId() == serverId) sendAll(sendMessage);
-                    else sendDM(sendMessage);
+                    if (sendMessage.getReceiverId() == serverId)
+                        sendAll(sendMessage);
+                    else
+                        sendDM(sendMessage);
                 }
             }
 
@@ -51,55 +50,50 @@ public class ServerFunctionality extends Server
 
         inputThread = new Thread(() ->
         {
-            Thread[] clientInputThreads = new Thread[serverSize];
-
-            while (isRunning)
+            try
             {
-                for (int i = 0; i < serverSize; i++)
+                Thread[] clientInputThreads = new Thread[serverSize];
+
+                while (isRunning)
                 {
-                    if (clients[i] == null) continue;
-                    if (clientInputThreads[i] != null) continue;
-
-                    int clientCursor = i;
-
-                    clientInputThreads[i] = new Thread(() ->
+                    if (Thread.currentThread().isInterrupted())
                     {
-                        Message readMessage;
-                        String strMessage;
+                        for (int i = 0; i < serverSize; i++)
+                        {
+                            if (clientInputThreads[i] != null)
+                            {
+                                clientInputThreads[i].interrupt();
+                                clientInputThreads[i] = null;
+                            }
+                        }
+                    }
 
-                        try
+                    for (int i = 0; i < serverSize; i++)
+                    {
+                        if (clientIsEmpty(i)) continue;
+                        if (clientInputThreads[i] != null) continue;
+
+                        int clientCount = i;
+
+                        clientInputThreads[i] = new Thread(() ->
                         {
                             while (isRunning)
                             {
-                                readMessage = (Message) clients[clientCursor].inputStream.readObject();
-
-                                if (Message.isEmpty(readMessage)) continue;
-
-                                strMessage = readMessage.getMessage();
-
-                                if (clientExit.matcher(strMessage).matches())
-                                {
-                                    disconnectClient(clientCursor);
+                                if (Thread.currentThread().isInterrupted())
                                     return;
-                                }
-
-                                if (changeClientName.matcher(strMessage).matches()) changeClientName(clientCursor, strMessage.substring(6));
-
-                                else if (readMessage.getReceiverId() == serverId) sendAll(readMessage);
-
-                                else sendDM(readMessage);
+                                handleMessage(readMessage(clientCount));
                             }
-                        }
+                        });
 
-                        catch (Exception e)
-                        {
-                            System.err.println("Failed to read message from client");
-                        }
-                    });
-
-                    clientInputThreads[i].start();
-                    if (!clientInputThreads[i].isAlive()) clientInputThreads[i] = null;
+                        clientInputThreads[i].start();
+                    }
                 }
+            }
+
+            catch (Exception e)
+            {
+                System.err.println("Failed to receive client message");
+                e.printStackTrace();
             }
         });
 
